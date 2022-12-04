@@ -1,0 +1,29 @@
+#!/bin/sh
+
+if [ ! -d "lib/include" ]; then
+  mkdir -p .buildlibs
+  mkdir -p lib/include
+  mkdir -p lib/lib
+
+  cd .buildlibs
+
+  # install libpq
+  wget https://github.com/postgres/postgres/archive/refs/tags/REL_15_1.zip
+  unzip REL_15_1.zip -d postgresql
+  cd postgresql/postgres-REL_15_1/
+  ./configure
+  make -C src/interfaces/libpq
+  make -C src/port
+
+  cp -R src/include ../../../lib/
+  cp -R src/interfaces/libpq/*.h ../../../lib/include/
+  cp src/interfaces/libpq/*.a ../../../lib/lib/
+  cp src/port/*.a ../../../lib/lib/
+  cp src/common/*.a ../../../lib/lib/
+
+  cd ../../../
+  rm -rf .buildlibs
+fi
+
+# build libmadserver.a
+make -C lib -j

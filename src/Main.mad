@@ -1,0 +1,12 @@
+type Connection = Connection
+export type Connection
+
+
+connect :: String -> Connection
+export connect = extern "madpostgres__connect"
+
+disconnect :: Connection -> {}
+export disconnect = extern "madpostgres__disconnect"
+
+exec :: Connection -> String -> (String -> {}) -> {}
+export exec = extern "madpostgres__query"
