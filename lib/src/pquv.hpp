@@ -1,17 +1,23 @@
 #pragma once
 
-#include "uv.h"
 #include "libpq-fe.h"
+#include "uv.h"
 
 struct pquv_st;
 typedef struct pquv_st pquv_t;
 
-#define MAX_CONNINFO_LENGTH 1048
-pquv_t* pquv_init(const char* conninfo, uv_loop_t* loop);
-void pquv_free(pquv_t* pquv);
-
 /* its up to the receiver of the callback to call PQclear on `res` */
 typedef void (*req_cb)(void* opaque, PGresult* res);
+typedef void (*init_cb)(void* opaque, pquv_t* connection);
+
+
+#define MAX_CONNINFO_LENGTH 1048
+void pquv_init(const char* conninfo, uv_loop_t* loop, void *opaque, init_cb cb);
+void pquv_free(pquv_t* pquv);
+
+int pquv_get_error(pquv_t *connection);
+char *pquv_get_errorMessage(pquv_t *connection);
+
 
 #define MAX_QUERY_LENGTH 2048
 #define MAX_NAME_LENGTH 512

@@ -22,8 +22,9 @@ if [ ! -d "lib/include" ]; then
   cp src/common/*.a ../../../lib/lib/
 
   cd ../../../
-  rm -rf .buildlibs
+
+  # rm -rf .buildlibs
 fi
 
-# build libmadserver.a
+# build libmadpostgres.a
 make -C lib -j

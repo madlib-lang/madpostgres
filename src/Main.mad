@@ -1,12 +1,69 @@
+import type { DateTime } from "Date"
+import type { Wish } from "Wish"
+
+import { Wish } from "Wish"
+
+
+
 type Connection = Connection
 export type Connection
 
+export type Error = BadConnection(String) | BadQuery(String) | UnknownError
 
-connect :: String -> Connection
-export connect = extern "madpostgres__connect"
+
+export type Value
+  = BooleanValue(Boolean)
+  | FloatValue(Float)
+  | IntegerValue(Integer)
+  | Money(Integer, Integer)
+  | StringValue(String)
+  | Timestamp(DateTime)
+  | NotImplemented
+
+export alias Row = List Value
+export alias QueryResult = List Row
+
+
+connectFFI :: String -> (Integer -> String -> {}) -> (Connection -> {}) -> {}
+connectFFI = extern "madpostgres__connect"
+
 
 disconnect :: Connection -> {}
 export disconnect = extern "madpostgres__disconnect"
 
-exec :: Connection -> String -> (String -> {}) -> {}
-export exec = extern "madpostgres__query"
+
+queryFFI :: Connection -> String -> (Integer -> String -> {}) -> (QueryResult -> {}) -> {}
+queryFFI = extern "madpostgres__query"
+
+
+connect :: String -> Wish Error Connection
+export connect = (connectionString) => Wish(
+  (bad, good) => connectFFI(
+    connectionString,
+    (code, message) => where(code) {
+      1 =>
+        bad(BadConnection(message))
+
+      _ =>
+        bad(UnknownError)
+    },
+    good,
+  ),
+)
+
+
+query :: Connection -> String -> Wish Error QueryResult
+export query = (connection, q) => Wish(
+  (bad, good) => queryFFI(
+    connection,
+    q,
+    (code, message) => where(code) {
+      2 =>
+        bad(BadQuery(message))
+
+      _ =>
+        bad(UnknownError)
+    },
+    good
+  )
+)

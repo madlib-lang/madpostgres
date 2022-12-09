@@ -44,6 +44,12 @@ enum pquv_state_t {
     PQUV_BAD_RESET,
 };
 
+enum pquv_error_t {
+  PQUV_ERROR_NONE = 0,
+  PQUV_ERROR_BAD_CONNECTION,
+  PQUV_ERROR_BAD_QUERY,
+};
+
 struct pquv_st {
     uv_loop_t* loop;
     uv_poll_t poll;
@@ -56,6 +62,10 @@ struct pquv_st {
     queue_t queue;
     int fd;
     int eventmask;
+    enum pquv_error_t err;
+    char *errMessage;
+    init_cb connectionCB;
+    void *connectionOpaque;
 };
 
 static req_t* dequeue(queue_t* queue)
@@ -326,8 +336,13 @@ static void poll_cb(uv_poll_t* handle, int status, int events)
             PGresult* r = PQgetResult(pquv->conn);
 
             int res = PQresultStatus(r);
-            if(res != PGRES_TUPLES_OK && res != PGRES_COMMAND_OK)
-                warn("query failed: %s", PQerrorMessage(pquv->conn));
+            if(res != PGRES_TUPLES_OK && res != PGRES_COMMAND_OK) {
+              char *errMessage = PQerrorMessage(pquv->conn);
+              size_t errMessageLength = strlen(errMessage);
+              pquv->err = PQUV_ERROR_BAD_QUERY;
+              pquv->errMessage = (char*) GC_MALLOC_ATOMIC(errMessageLength + 1);
+              memcpy(pquv->errMessage, errMessage, errMessageLength + 1);
+            }
 
             pquv->live->cb(pquv->live->opaque, r);
             free_req(pquv->live);
@@ -407,22 +422,26 @@ static void start_connection_close_poll_cb(uv_handle_t* h)
 static void start_connection(pquv_t* pquv)
 {
     if(pquv->fd >= 0) {
-        if(uv_poll_stop(&pquv->poll) != 0)
-            failwith("uv_poll_stop failed");
+        if(uv_poll_stop(&pquv->poll) != 0) {
+          pquv->err = PQUV_ERROR_BAD_CONNECTION;
+        }
         uv_close((uv_handle_t*)&pquv->poll, start_connection_close_poll_cb);
         return;
     }
 
     pquv->conn = PQconnectStart(pquv->conninfo);
-    if(pquv->conn == NULL)
-        failwith("PQconnectStart failed");
+    if(pquv->conn == NULL) {
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
-    if(PQstatus(pquv->conn) == CONNECTION_BAD)
-        failwith("connection is bad");
+    if(PQstatus(pquv->conn) == CONNECTION_BAD){
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
     int fd = PQsocket(pquv->conn);
-    if(fd < 0)
-        failwith("PQsocket failed");
+    if(fd < 0) {
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
     /*
      * From libuv documentation:
@@ -445,12 +464,14 @@ static void start_connection(pquv_t* pquv)
      */
 
     pquv->fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
-    if(pquv->fd < 0)
-        failwith("unable to dup fd %d: %s\n", fd, strerror(errno));
+    if(pquv->fd < 0) {
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
     int r;
-    if((r = uv_poll_init(pquv->loop, &pquv->poll, pquv->fd)) != 0)
-        failwith("uv_poll_init: %s\n", uv_strerror(r));
+    if((r = uv_poll_init(pquv->loop, &pquv->poll, pquv->fd)) != 0) {
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
     pquv->state = PQUV_CONNECTING;
 
@@ -485,13 +506,13 @@ static void poll_connection(pquv_t* pquv)
 
     switch(pquv->state) {
     case PQUV_CONNECTING:
-        r = PQconnectPoll(pquv->conn);
-        break;
+      r = PQconnectPoll(pquv->conn);
+      break;
     case PQUV_RESETTING:
-        r = PQresetPoll(pquv->conn);
-        break;
+      r = PQresetPoll(pquv->conn);
+      break;
     default:
-        failwith("unexpected state: %d\n", pquv->state);
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
     }
 
     switch(r) {
@@ -506,13 +527,20 @@ static void poll_connection(pquv_t* pquv)
     case PGRES_POLLING_OK:
         pquv->state = PQUV_CONNECTED;
         pquv->eventmask = events = UV_WRITABLE | UV_READABLE;
+        pquv->connectionCB(pquv->connectionOpaque, pquv);
         cb = poll_cb;
         break;
     case PGRES_POLLING_FAILED:
         switch(pquv->state) {
-        case PQUV_CONNECTING:
-            pquv->state = PQUV_BAD_CONNECTION;
-            break;
+        case PQUV_CONNECTING: {
+            char *errMessage = PQerrorMessage(pquv->conn);
+            size_t errMessageLength = strlen(errMessage);
+            pquv->err = PQUV_ERROR_BAD_CONNECTION;
+            pquv->errMessage = (char*) GC_MALLOC_ATOMIC(errMessageLength + 1);
+            memcpy(pquv->errMessage, errMessage, errMessageLength + 1);
+            pquv->connectionCB(pquv->connectionOpaque, pquv);
+            return;
+        }
         case PQUV_RESETTING:
             pquv->state = PQUV_BAD_RESET;
             break;
@@ -529,17 +557,24 @@ static void poll_connection(pquv_t* pquv)
             failwith("uv_timer_start: %s\n", uv_strerror(r));
         return;
     default:
-        failwith("PQconnectPoll unexpected status\n");
+        char *errMessage = PQerrorMessage(pquv->conn);
+        size_t errMessageLength = strlen(errMessage);
+        pquv->err = PQUV_ERROR_BAD_CONNECTION;
+        pquv->errMessage = (char*) GC_MALLOC_ATOMIC(errMessageLength + 1);
+        memcpy(pquv->errMessage, errMessage, errMessageLength + 1);
+        pquv->connectionCB(pquv->connectionOpaque, pquv);
+        return;
     }
 
     if((r = uv_poll_start(&pquv->poll, events, cb)) != 0)
         failwith("uv_poll_start: %s\n", uv_strerror(r));
 }
 
-pquv_t* pquv_init(const char* conninfo, uv_loop_t* loop)
-{
+void pquv_init(const char* conninfo, uv_loop_t* loop, void *opaque, init_cb cb) {
     pquv_t* pquv = (pquv_t*)GC_MALLOC_UNCOLLECTABLE(sizeof(*pquv));
-    if(pquv == NULL) failwith("malloc NULL:ed");
+    // if(pquv == NULL) {
+    //   pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    // };
 
     pquv->loop = loop;
     pquv->conninfo = strndup(conninfo, MAX_CONNINFO_LENGTH);
@@ -550,18 +585,20 @@ pquv_t* pquv_init(const char* conninfo, uv_loop_t* loop)
     pquv->fd = -1;
     pquv->eventmask = 0;
     pquv->live = NULL;
+    pquv->err = PQUV_ERROR_NONE;
+    pquv->errMessage = (char*)"";
+    pquv->connectionCB = cb;
+    pquv->connectionOpaque = opaque;
 
     int r;
-    if((r = uv_timer_init(loop, &pquv->reconnect_timer)) != 0)
-        failwith("uv_timer_init: %s\n", uv_strerror(r));
+    if((r = uv_timer_init(loop, &pquv->reconnect_timer)) != 0) {
+      pquv->err = PQUV_ERROR_BAD_CONNECTION;
+    }
 
     start_connection(pquv);
-
-    return pquv;
 }
 
-static void pquv_free_close_poll_cb(uv_handle_t* h)
-{
+static void pquv_free_close_poll_cb(uv_handle_t* h) {
     pquv_t* pquv = container_of(h, pquv_t, poll);
 
     if(close(pquv->fd) != 0)
@@ -584,16 +621,28 @@ static void pquv_free_close_poll_cb(uv_handle_t* h)
 }
 
 
-static void pquv_close_timer_cb(uv_handle_t* h)
-{
-    pquv_t* pquv = container_of(h, pquv_t, reconnect_timer);
+static void pquv_close_timer_cb(uv_handle_t* h) {
+  pquv_t* pquv = container_of(h, pquv_t, reconnect_timer);
+
+//   if (pquv && pquv->poll.u.fd != 0) {
+  if (uv_is_active((uv_handle_t *)&pquv->poll)) {
     int r;
     if((r = uv_poll_stop(&pquv->poll)) != 0)
-       failwith("uv_poll_stop: %s\n", uv_strerror(r));
+      failwith("uv_poll_stop: %s\n", uv_strerror(r));
     uv_close((uv_handle_t*)&pquv->poll, pquv_free_close_poll_cb);
+  } else {
+    GC_FREE(pquv);
+  }
 }
 
-void pquv_free(pquv_t* pquv)
-{
-    uv_close((uv_handle_t*)&pquv->reconnect_timer, pquv_close_timer_cb);
+void pquv_free(pquv_t* pquv) {
+  uv_close((uv_handle_t*)&pquv->reconnect_timer, pquv_close_timer_cb);
+}
+
+int pquv_get_error(pquv_t *connection) {
+  return connection->err;
+}
+
+char *pquv_get_errorMessage(pquv_t *connection) {
+  return connection->errMessage;
 }

@@ -10,7 +10,7 @@ SRCDIR := src
 OBJS :=\
   $(BUILDDIR)/madpostgres.o\
   $(BUILDDIR)/pquvutils.o\
-  $(BUILDDIR)/pquv.o
+  $(BUILDDIR)/pquv.o\
 
 MADLIB_RUNTIME_HEADERS_PATH := $(shell madlib config runtime-headers-path)
 MADLIB_RUNTIME_LIB_HEADERS_PATH := $(shell madlib config runtime-lib-headers-path)
