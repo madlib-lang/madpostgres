@@ -23,7 +23,7 @@ if [ ! -d "lib/include" ]; then
 
   cd ../../../
 
-  # rm -rf .buildlibs
+  rm -rf .buildlibs
 fi
 
 # build libmadpostgres.a

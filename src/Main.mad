@@ -13,11 +13,16 @@ export type Error = BadConnection(String) | BadQuery(String) | UnknownError
 
 export type Value
   = BooleanValue(Boolean)
-  | FloatValue(Float)
-  | IntegerValue(Integer)
+  | DateValue(DateTime)
+  | Float4Value(Float)
+  | Float8Value(Float)
+  | Int4Value(Integer)
+  | Int8Value(Integer)
   | Money(Integer, Integer)
-  | StringValue(String)
+  | Text(String)
   | Timestamp(DateTime)
+  | TimestampTz(DateTime)
+  | VarCharValue(String)
   | NotImplemented
 
 export alias Row = List Value

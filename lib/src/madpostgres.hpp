@@ -7,12 +7,17 @@ extern "C" {
 // https://manpages.ubuntu.com/manpages/jammy/man3/pqt-specs.3.html
 
 const int64_t madpostgres__Value_Boolean = 0;
-const int64_t madpostgres__Value_Float = 1;
-const int64_t madpostgres__Value_Integer = 2;
-const int64_t madpostgres__Value_Money = 3;
-const int64_t madpostgres__Value_NotImplemented = 4;
-const int64_t madpostgres__Value_String = 5;
-const int64_t madpostgres__Value_Timestamp = 6;
+const int64_t madpostgres__Value_Date = 1;
+const int64_t madpostgres__Value_Float4 = 2;
+const int64_t madpostgres__Value_Float8 = 3;
+const int64_t madpostgres__Value_Int4 = 4;
+const int64_t madpostgres__Value_Int8 = 5;
+const int64_t madpostgres__Value_Money = 6;
+const int64_t madpostgres__Value_NotImplemented = 7;
+const int64_t madpostgres__Value_Text = 8;
+const int64_t madpostgres__Value_Timestamp = 9;
+const int64_t madpostgres__Value_TimestampTz = 10;
+const int64_t madpostgres__Value_VarChar = 11;
 
 typedef struct madpostgres__MadlibADT {
   int64_t index;

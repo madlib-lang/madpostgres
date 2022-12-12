@@ -24,6 +24,11 @@ union int8Value {
   int64_t num;
 };
 
+union float4Value {
+  char bytes[4];
+  double num;
+};
+
 union float8Value {
   char bytes[8];
   double num;
@@ -97,6 +102,18 @@ double ntoh_float8(char *input) {
   return rval;
 }
 
+double ntoh_float4(char *input) {
+  float rval;
+  uint8_t *data = (uint8_t *)&rval;
+
+  data[0] = input[3];
+  data[1] = input[2];
+  data[2] = input[1];
+  data[3] = input[0];
+
+  return (double) rval;
+}
+
 
 madpostgres__Value_t *madpostgres__buildInt8Value(char *pqValue) {
   union int8Value num;
@@ -104,7 +121,19 @@ madpostgres__Value_t *madpostgres__buildInt8Value(char *pqValue) {
   int64_t hostOrdered = ntoh64(&num.num);
 
   madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
-  res->index = madpostgres__Value_Integer;
+  res->index = madpostgres__Value_Int8;
+  res->data1 = (void*)hostOrdered;
+  return res;
+}
+
+
+madpostgres__Value_t *madpostgres__buildInt4Value(char *pqValue) {
+  union int4Value num;
+  memcpy(num.bytes, pqValue, 4);
+  int64_t hostOrdered = ntohl(num.num);
+
+  madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
+  res->index = madpostgres__Value_Int4;
   res->data1 = (void*)hostOrdered;
   return res;
 }
@@ -138,6 +167,13 @@ madpostgres__Value_t *madpostgres__buildTimestampValue(char *pqValue) {
 }
 
 
+madpostgres__Value_t *madpostgres__buildTimestampTzValue(char *pqValue) {
+  madpostgres__Value_t *res = madpostgres__buildTimestampValue(pqValue);
+  res->index = madpostgres__Value_TimestampTz;
+  return res;
+}
+
+
 madpostgres__Value_t *madpostgres__buildDateValue(char *pqValue) {
   union int4Value num;
   memcpy(num.bytes, pqValue, 4);
@@ -149,7 +185,7 @@ madpostgres__Value_t *madpostgres__buildDateValue(char *pqValue) {
   dateTime->data = (void*)hostOrdered;
 
   madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
-  res->index = madpostgres__Value_Timestamp;
+  res->index = madpostgres__Value_Date;
   res->data1 = (void*)dateTime;
   return res;
 }
@@ -160,8 +196,19 @@ madpostgres__Value_t *madpostgres__buildFloat8Value(char *pqValue) {
   memcpy(num.bytes, pqValue, 8);
 
   madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
-  res->index = madpostgres__Value_Float;
+  res->index = madpostgres__Value_Float8;
   res->data1 = (void*)boxDouble(ntoh_float8((char*)&num.num));
+  return res;
+}
+
+
+madpostgres__Value_t *madpostgres__buildFloat4Value(char *pqValue) {
+  union float4Value num;
+  memcpy(num.bytes, pqValue, 4);
+
+  madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
+  res->index = madpostgres__Value_Float4;
+  res->data1 = (void*)boxDouble(ntoh_float4((char*)&num.num));
   return res;
 }
 
@@ -181,8 +228,15 @@ madpostgres__Value_t *madpostgres__buildTextValue(char *pqValue) {
   copy[length] = '\0';
 
   madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
-  res->index = madpostgres__Value_String;
+  res->index = madpostgres__Value_Text;
   res->data1 = (void*)copy;
+  return res;
+}
+
+
+madpostgres__Value_t *madpostgres__buildVarCharValue(char *pqValue) {
+  madpostgres__Value_t *res = madpostgres__buildTextValue(pqValue);
+  res->index = madpostgres__Value_VarChar;
   return res;
 }
 
@@ -203,12 +257,20 @@ madpostgres__ValueParser *madpostgres__buildValueParserArray(int colCount, PGres
         result[i] = madpostgres__buildInt8Value;
         break;
 
+      case INT4OID:
+        result[i] = madpostgres__buildInt4Value;
+        break;
+
       case FLOAT8OID:
         result[i] = madpostgres__buildFloat8Value;
         break;
 
+      case FLOAT4OID:
+        result[i] = madpostgres__buildFloat4Value;
+        break;
+
       case VARCHAROID:
-        result[i] = madpostgres__buildTextValue;
+        result[i] = madpostgres__buildVarCharValue;
         break;
 
       case TEXTOID:
@@ -220,7 +282,7 @@ madpostgres__ValueParser *madpostgres__buildValueParserArray(int colCount, PGres
         break;
 
       case TIMESTAMPTZOID:
-        result[i] = madpostgres__buildTimestampValue;
+        result[i] = madpostgres__buildTimestampTzValue;
         break;
 
       case DATEOID:
