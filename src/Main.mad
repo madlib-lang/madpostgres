@@ -16,8 +16,11 @@ export type Value
   | DateValue(DateTime)
   | Float4Value(Float)
   | Float8Value(Float)
+  | Int2Value(Integer)
   | Int4Value(Integer)
   | Int8Value(Integer)
+  | Json(String)
+  | JsonB(String)
   | Money(Integer, Integer)
   | Text(String)
   | Timestamp(DateTime)
@@ -36,6 +39,11 @@ connectFFI = extern "madpostgres__connect"
 disconnect :: Connection -> {}
 export disconnect = extern "madpostgres__disconnect"
 
+// disconnect :: Connection -> Wish Error {}
+// export disconnect = (connection) => Wish((_, good) => {
+//   disconnectFFI(connection)
+//   good({})
+// })
 
 queryFFI :: Connection -> String -> (Integer -> String -> {}) -> (QueryResult -> {}) -> {}
 queryFFI = extern "madpostgres__query"
@@ -56,13 +64,16 @@ export connect = (connectionString) => Wish(
   ),
 )
 
-
+// TODO: we should probably invert the params
 query :: Connection -> String -> Wish Error QueryResult
 export query = (connection, q) => Wish(
   (bad, good) => queryFFI(
     connection,
     q,
     (code, message) => where(code) {
+      1 =>
+        bad(BadConnection(message))
+
       2 =>
         bad(BadQuery(message))
 

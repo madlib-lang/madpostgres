@@ -14,6 +14,11 @@
 extern "C" {
 #endif
 
+union int2Value {
+  char bytes[2];
+  int16_t num;
+};
+
 union int4Value {
   char bytes[4];
   int32_t num;
@@ -139,6 +144,18 @@ madpostgres__Value_t *madpostgres__buildInt4Value(char *pqValue) {
 }
 
 
+madpostgres__Value_t *madpostgres__buildInt2Value(char *pqValue) {
+  union int2Value num;
+  memcpy(num.bytes, pqValue, 2);
+  int64_t hostOrdered = ntohs(num.num);
+
+  madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
+  res->index = madpostgres__Value_Int2;
+  res->data1 = (void*)hostOrdered;
+  return res;
+}
+
+
 madpostgres__Value_t *madpostgres__buildMoneyValue(char *pqValue) {
   union int8Value num;
   memcpy(num.bytes, pqValue, 8);
@@ -241,6 +258,20 @@ madpostgres__Value_t *madpostgres__buildVarCharValue(char *pqValue) {
 }
 
 
+madpostgres__Value_t *madpostgres__buildJsonValue(char *pqValue) {
+  madpostgres__Value_t *res = madpostgres__buildTextValue(pqValue);
+  res->index = madpostgres__Value_Json;
+  return res;
+}
+
+
+madpostgres__Value_t *madpostgres__buildJsonBValue(char *pqValue) {
+  madpostgres__Value_t *res = madpostgres__buildTextValue(pqValue);
+  res->index = madpostgres__Value_JsonB;
+  return res;
+}
+
+
 madpostgres__Value_t *madpostgres__buildNotImplemented(char *pqValue) {
   madpostgres__Value_t *res = (madpostgres__Value_t*) GC_MALLOC(sizeof(madpostgres__Value_t));
   res->index = madpostgres__Value_NotImplemented;
@@ -261,12 +292,24 @@ madpostgres__ValueParser *madpostgres__buildValueParserArray(int colCount, PGres
         result[i] = madpostgres__buildInt4Value;
         break;
 
+      case INT2OID:
+        result[i] = madpostgres__buildInt2Value;
+        break;
+
       case FLOAT8OID:
         result[i] = madpostgres__buildFloat8Value;
         break;
 
       case FLOAT4OID:
         result[i] = madpostgres__buildFloat4Value;
+        break;
+
+      case JSONOID:
+        result[i] = madpostgres__buildJsonValue;
+        break;
+
+      case JSONBOID:
+        result[i] = madpostgres__buildJsonBValue;
         break;
 
       case VARCHAROID:
@@ -341,8 +384,19 @@ void madpostgres__handleQueryResult(void *callbacks, PGresult* res) {
 
 void madpostgres__query(pquv_t *connection, char *query, PAP_t *badCB, PAP_t *goodCB) {
   int err = pquv_get_error(connection);
-  if (err) {
-    __applyPAP__(badCB, 1, err);
+  char *errMessage = pquv_get_errorMessage(connection);
+  bool alreadyDisconnected = pquv_get_diconnected(connection);
+  // printf("errMessage: %s\n", errMessage);
+  if (alreadyDisconnected) {
+    // TODO: allocate the string
+    __applyPAP__(badCB, 2, 1, "Connection is already closed.");
+  }
+  else if (err) {
+    if (err == 1 && !alreadyDisconnected) {
+      // if connection is bad we close it
+      madpostgres__disconnect(connection);
+    }
+    __applyPAP__(badCB, 2, err, errMessage);
   } else {
     madpostgres__Callbacks_t *callbacks = (madpostgres__Callbacks_t*) GC_MALLOC(sizeof(madpostgres__Callbacks_t));
     callbacks->badCB = badCB;

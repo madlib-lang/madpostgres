@@ -6,4 +6,7 @@ src/Test.mad
 .vscode
 .buildlibs
 .DS_Store
+
+.tests
+.coverage
 build
