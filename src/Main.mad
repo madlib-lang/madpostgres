@@ -51,35 +51,45 @@ queryFFI = extern "madpostgres__query"
 
 connect :: String -> Wish Error Connection
 export connect = (connectionString) => Wish(
-  (bad, good) => connectFFI(
-    connectionString,
-    (code, message) => where(code) {
-      1 =>
-        bad(BadConnection(message))
+  (bad, good) => {
+    connectFFI(
+      connectionString,
+      (code, message) => where(code) {
+        1 =>
+          bad(BadConnection(message))
 
-      _ =>
-        bad(UnknownError)
-    },
-    good,
-  ),
+        _ =>
+          bad(UnknownError)
+      },
+      good,
+    )
+
+    // TODO: handle canceling
+    return () => {}
+  }
 )
 
 // TODO: we should probably invert the params
 query :: Connection -> String -> Wish Error QueryResult
 export query = (connection, q) => Wish(
-  (bad, good) => queryFFI(
-    connection,
-    q,
-    (code, message) => where(code) {
-      1 =>
-        bad(BadConnection(message))
+  (bad, good) => {
+    queryFFI(
+      connection,
+      q,
+      (code, message) => where(code) {
+        1 =>
+          bad(BadConnection(message))
 
-      2 =>
-        bad(BadQuery(message))
+        2 =>
+          bad(BadQuery(message))
 
-      _ =>
-        bad(UnknownError)
-    },
-    good
-  )
+        _ =>
+          bad(UnknownError)
+      },
+      good
+    )
+
+    // TODO: handle canceling
+    return () => {}
+  }
 )

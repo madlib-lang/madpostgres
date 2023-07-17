@@ -9,4 +9,5 @@ src/Test.mad
 
 .tests
 .coverage
+.repl
 build
