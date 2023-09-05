@@ -1,0 +1,221 @@
+import type { Wish } from "Wish"
+
+import type { Error } from "./Main"
+
+import { always } from "Function"
+import Process from "Process"
+import { ErrorWithMessage, assertEquals, test } from "Test"
+import { after, bad, chainRej, good } from "Wish"
+
+import {
+  BadConnection,
+  BadQuery,
+  Float8Value,
+  Int8Value,
+  UnknownError,
+  connect,
+  disconnect,
+  query,
+} from "./Main"
+
+
+
+CONNECTION_STRING :: String
+CONNECTION_STRING = "postgresql://test:test@localhost:2345/test"
+
+
+MAX_ATTEMPTS :: Integer
+MAX_ATTEMPTS = 20
+
+
+waitForConnection :: String -> Wish Error {}
+waitForConnection = (connectionString) => do {
+  attempts = 0
+
+  attempt = () => do {
+    attempts = attempts + 1
+    _ <- after(200, {})
+    return attempts >= MAX_ATTEMPTS
+      ? bad(BadConnection("Connection failed"))
+      : chainRej(attempt, connect(connectionString))
+  }
+
+  connection <- attempt(UnknownError)
+  disconnect(connection)
+
+  return of({})
+}
+
+
+beforeAll = () => do {
+  startContainerWish = Process.exec(
+    "docker",
+    [
+      "run",
+      "--name",
+      "test-postgres",
+      "-e",
+      "POSTGRES_PASSWORD=test",
+      "-e",
+      "POSTGRES_USER=test",
+      "-e",
+      "POSTGRES_DB=test",
+      "-p",
+      "2345:5432",
+      "-d",
+      "postgres",
+    ],
+    Process.DEFAULT_COMMAND_OPTIONS,
+  )
+
+  _ <- chainRej(always(bad(UnknownError)), startContainerWish)
+  _ <- waitForConnection(CONNECTION_STRING)
+
+  return of({})
+}
+
+afterAll = () => Process.exec(
+  "docker",
+  ["rm", "-f", "test-postgres"],
+  Process.DEFAULT_COMMAND_OPTIONS,
+)
+
+withAssertionError = (message, wish) => chainRej(always(bad(ErrorWithMessage(message))), wish)
+assertConnect = (connectionStr) => withAssertionError("Connection failed", connect(connectionStr))
+assertQuery = (connection, connectionStr) => withAssertionError(
+  "query failed",
+  query(connection, connectionStr),
+)
+
+test(
+  "query",
+  () => do {
+    connection <- assertConnect(CONNECTION_STRING)
+    _ <- assertQuery(connection, `CREATE TABLE t ( float8 double precision, int8 int8 );`)
+    _ <- assertQuery(connection, `INSERT INTO t VALUES (1.1, 44);`)
+    res <- assertQuery(connection, `SELECT * FROM t;`)
+    disconnect(connection)
+
+    return assertEquals(res, [[Float8Value(1.1), Int8Value(44)]])
+  },
+)
+
+test(
+  "query - bad syntax",
+  () => do {
+    connection <- assertConnect(CONNECTION_STRING)
+    res <- pipe(
+      query($, "wrong"),
+      chain(always(good(BadQuery("")))),
+      chainRej(good),
+    )(connection)
+    disconnect(connection)
+
+    return assertEquals(
+      res,
+      BadQuery(`ERROR:  syntax error at or near "wrong"\nLINE 1: wrong\n        ^\n`),
+    )
+  },
+)
+
+test(
+  "query - bad table",
+  () => do {
+    connection <- assertConnect(CONNECTION_STRING)
+    res <- pipe(
+      query($, "select * from bad_table;"),
+      chain(always(good(BadQuery("")))),
+      chainRej(good),
+    )(connection)
+    disconnect(connection)
+
+    return assertEquals(
+      res,
+      BadQuery(
+        `ERROR:  relation "bad_table" does not exist\nLINE 1: select * from bad_table;\n                      ^\n`,
+      ),
+    )
+  },
+)
+
+test(
+  "query - url not reachable",
+  () => do {
+    connectionResult <- pipe(
+      connect,
+      chain(always(good(false))),
+      chainRej(
+        where {
+          BadConnection(_) =>
+            good(true)
+
+          _ =>
+            good(false)
+        },
+      ),
+    )("postgresql://test:test@localhost:1234/test")
+
+    return assertEquals(connectionResult, true)
+  },
+)
+
+test(
+  "query - connection closed",
+  () => do {
+    connection <- assertConnect(CONNECTION_STRING)
+    disconnect(connection)
+    res <- pipe(
+      query($, "select * from bad_table;"),
+      chain(always(good(BadQuery("")))),
+      chainRej(good),
+    )(connection)
+
+    return assertEquals(res, BadConnection(`Connection is already closed.`))
+  },
+)
+
+test(
+  "query - connection lost",
+  () => do {
+    startContainerWish = Process.exec(
+      "docker",
+      [
+        "run",
+        "--name",
+        "test-postgres-failure",
+        "-e",
+        "POSTGRES_PASSWORD=test",
+        "-e",
+        "POSTGRES_USER=test",
+        "-e",
+        "POSTGRES_DB=test",
+        "-p",
+        "3456:5432",
+        "-d",
+        "postgres",
+      ],
+      Process.DEFAULT_COMMAND_OPTIONS,
+    )
+
+    _ <- withAssertionError("", startContainerWish)
+    _ <- withAssertionError("", waitForConnection("postgresql://test:test@localhost:3456/test"))
+
+    connection <- assertConnect("postgresql://test:test@localhost:3456/test")
+    _ <- withAssertionError(
+      "",
+      Process.exec("docker", ["rm", "test-postgres-failure", "-f"], Process.DEFAULT_COMMAND_OPTIONS),
+    )
+    res <- pipe(
+      query($, "select * from bad_table;"),
+      chain(always(good(BadQuery("")))),
+      chainRej(good),
+    )(connection)
+
+    return assertEquals(
+      res,
+      BadConnection(
+        "server closed the connection unexpectedly\n\tThis probably means the server terminated abnormally\n\tbefore or while processing the request.\n",
+      ),
+    )
+  },
+)
