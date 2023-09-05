@@ -18,7 +18,7 @@ void pquv_free(pquv_t* pquv);
 int pquv_get_error(pquv_t *connection);
 char *pquv_get_errorMessage(pquv_t *connection);
 
-bool pquv_get_diconnected(pquv_t *connection);
+bool pquv_get_disconnected(pquv_t *connection);
 
 
 #define MAX_QUERY_LENGTH 2048

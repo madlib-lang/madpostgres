@@ -587,6 +587,6 @@ int pquv_get_error(pquv_t* connection) {
   return connection->err;
 }
 
-bool pquv_get_diconnected(pquv_t* connection) { return connection->alreadyDisconnected; }
+bool pquv_get_disconnected(pquv_t* connection) { return connection->alreadyDisconnected; }
 
 char* pquv_get_errorMessage(pquv_t* connection) { return connection->errMessage; }

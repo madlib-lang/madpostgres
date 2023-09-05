@@ -385,7 +385,7 @@ void madpostgres__handleQueryResult(void *callbacks, PGresult* res) {
 void madpostgres__query(pquv_t *connection, char *query, PAP_t *badCB, PAP_t *goodCB) {
   int err = pquv_get_error(connection);
   char *errMessage = pquv_get_errorMessage(connection);
-  bool alreadyDisconnected = pquv_get_diconnected(connection);
+  bool alreadyDisconnected = pquv_get_disconnected(connection);
   // printf("errMessage: %s\n", errMessage);
   if (alreadyDisconnected) {
     // TODO: allocate the string
