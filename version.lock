@@ -1,0 +1,78 @@
+{
+  "buildHash": "ec6ad8c28abb18b4bebfdc284d84f2cc",
+  "jsApi": {
+    "apiInstances": [],
+    "apiAliases": {
+      "Row": "(List Value)",
+      "QueryResult": "(List Row)"
+    },
+    "apiInterfaces": {},
+    "apiNames": {
+      "connect": "String -> Wish Error Connection",
+      "query": "Connection -> String -> Wish Error (List (List Value))",
+      "disconnect": "Connection -> {}"
+    },
+    "apiTypes": {
+      "Error": [
+        "BadConnection String",
+        "BadQuery String",
+        "UnknownError"
+      ],
+      "Value": [
+        "BooleanValue Boolean",
+        "DateValue DateTime",
+        "Float4Value Float",
+        "Float8Value Float",
+        "Int2Value Integer",
+        "Int4Value Integer",
+        "Int8Value Integer",
+        "Json String",
+        "JsonB String",
+        "Money Integer Integer",
+        "Text String",
+        "Timestamp DateTime",
+        "TimestampTz DateTime",
+        "VarCharValue String",
+        "NotImplemented"
+      ]
+    }
+  },
+  "llvmApi": {
+    "apiInstances": [],
+    "apiAliases": {
+      "Row": "(List Value)",
+      "QueryResult": "(List Row)"
+    },
+    "apiInterfaces": {},
+    "apiNames": {
+      "connect": "String -> Wish Error Connection",
+      "query": "Connection -> String -> Wish Error (List (List Value))",
+      "disconnect": "Connection -> {}"
+    },
+    "apiTypes": {
+      "Error": [
+        "BadConnection String",
+        "BadQuery String",
+        "UnknownError"
+      ],
+      "Value": [
+        "BooleanValue Boolean",
+        "DateValue DateTime",
+        "Float4Value Float",
+        "Float8Value Float",
+        "Int2Value Integer",
+        "Int4Value Integer",
+        "Int8Value Integer",
+        "Json String",
+        "JsonB String",
+        "Money Integer Integer",
+        "Text String",
+        "Timestamp DateTime",
+        "TimestampTz DateTime",
+        "VarCharValue String",
+        "NotImplemented"
+      ]
+    }
+  },
+  "versionHash": "25e64aa754c310d45c1e084d574c1bb0"
+}

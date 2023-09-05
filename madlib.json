@@ -1,14 +1,15 @@
 {
   "name": "MadPostgres",
+  "version": "0.0.1",
   "madlibVersion": "0.13.0",
   "main": "src/Main.mad",
+  "hooks": {
+    "postInstall": "./scripts/build-lib"
+  },
   "staticLibs": [
     "./lib/build/libmadpostgres.a",
     "./lib/lib/libpgcommon.a",
     "./lib/lib/libpgport.a",
     "./lib/lib/libpq.a"
-  ],
-  "hooks": {
-    "postInstall": "./scripts/build-lib"
-  }
+  ]
 }
