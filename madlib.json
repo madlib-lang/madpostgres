@@ -1,6 +1,6 @@
 {
   "name": "MadPostgres",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "madlibVersion": "0.13.0",
   "main": "src/Main.mad",
   "hooks": {

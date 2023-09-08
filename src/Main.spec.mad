@@ -6,12 +6,18 @@ import { always } from "Function"
 import Process from "Process"
 import { ErrorWithMessage, assertEquals, test } from "Test"
 import { after, bad, chainRej, good } from "Wish"
+import { DateTime } from "Date"
 
 import {
   BadConnection,
   BadQuery,
+  Float4Value,
   Float8Value,
+  Int2Value,
+  Int4Value,
   Int8Value,
+  Money,
+  Timestamp,
   UnknownError,
   connect,
   disconnect,
@@ -80,23 +86,36 @@ afterAll = () => Process.exec(
   Process.DEFAULT_COMMAND_OPTIONS,
 )
 
-withAssertionError = (message, wish) => chainRej(always(bad(ErrorWithMessage(message))), wish)
+withAssertionError = (message, wish) => chainRej((err) => bad(ErrorWithMessage(`${message}\n\n${show(err)}`)), wish)
 assertConnect = (connectionStr) => withAssertionError("Connection failed", connect(connectionStr))
 assertQuery = (connection, connectionStr) => withAssertionError(
   "query failed",
   query(connection, connectionStr),
 )
 
+
 test(
   "query",
   () => do {
     connection <- assertConnect(CONNECTION_STRING)
-    _ <- assertQuery(connection, `CREATE TABLE t ( float8 double precision, int8 int8 );`)
-    _ <- assertQuery(connection, `INSERT INTO t VALUES (1.1, 44);`)
+    _ <- assertQuery(connection, "BEGIN;")
+    _ <- assertQuery(
+      connection,
+      `CREATE TABLE t (
+        float8 double precision,
+        float4 float4,
+        int8 int8,
+        int4 int4,
+        int2 int2,
+        money money
+      );`
+    )
+    _ <- assertQuery(connection, `INSERT INTO t VALUES (1.1, 1.1, 44, 44, 44, 45.25);`)
     res <- assertQuery(connection, `SELECT * FROM t;`)
+    _ <- assertQuery(connection, "COMMIT;")
     disconnect(connection)
 
-    return assertEquals(res, [[Float8Value(1.1), Int8Value(44)]])
+    return assertEquals(res, [[Float8Value(1.1), Float4Value(1.10000002384185791016), Int8Value(44), Int4Value(44), Int2Value(44), Money(45, 25)]])
   },
 )
 

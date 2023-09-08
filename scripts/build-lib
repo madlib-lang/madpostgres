@@ -1,5 +1,4 @@
 #!/bin/sh
-
 if [ ! -d "lib/include" ]; then
   mkdir -p .buildlibs
   mkdir -p lib/include
@@ -15,14 +14,13 @@ if [ ! -d "lib/include" ]; then
   make -C src/interfaces/libpq
   make -C src/port
 
-  cp -R src/include ../../../lib/
-  cp -R src/interfaces/libpq/*.h ../../../lib/include/
+  cp -LR src/include ../../../lib/
+  cp -LR src/interfaces/libpq/*.h ../../../lib/include/
   cp src/interfaces/libpq/*.a ../../../lib/lib/
   cp src/port/*.a ../../../lib/lib/
   cp src/common/*.a ../../../lib/lib/
 
   cd ../../../
-
   rm -rf .buildlibs
 fi
 

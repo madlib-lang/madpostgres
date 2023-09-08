@@ -353,8 +353,9 @@ madpostgres__ValueParser *madpostgres__buildValueParserArray(int colCount, PGres
 void madpostgres__handleQueryResult(void *callbacks, PGresult* res) {
   madpostgres__Callbacks_t *typedCallbacks = (madpostgres__Callbacks_t*)callbacks;
   int err = pquv_get_error(typedCallbacks->connection);
-  char *errMessage = pquv_get_errorMessage(typedCallbacks->connection);
+
   if (err > 0) {
+    char *errMessage = pquv_get_errorMessage(typedCallbacks->connection);
     __applyPAP__(typedCallbacks->badCB, 2, err, errMessage);
     return;
   }

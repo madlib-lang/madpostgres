@@ -9,6 +9,8 @@
 #include "pquvutils.hpp"
 #include "uv.h"
 
+static unsigned int statementIndex = 0;
+
 enum pquv_req_kind_t {
   PQUV_NORMAL_STATEMENT = 0,
   PQUV_PREPARE_STATEMENT,
@@ -115,12 +117,29 @@ static bool maybe_send_req(pquv_t* pquv) {
   }
 
   switch (r->kind) {
-    case PQUV_NORMAL_STATEMENT:
+    case PQUV_NORMAL_STATEMENT: {
+      // char *statementName = (char *) GC_MALLOC(64);
+      // sprintf(statementName, "%d", statementIndex);
+      // statementIndex += 1;
+      // PGresult *res = PQprepare(pquv->conn, statementName, r->q, 0, NULL);
+
+      // if (PQresultStatus(res) > 6) {
+      //   char *resultErrorMessage = PQresultErrorMessage(res);
+      //   r->cb(r->opaque, res);
+      //   setError(pquv, PQUV_ERROR_BAD_QUERY);
+      //   return false;
+      // } else {
+      //   PQsendQueryPrepared(pquv->conn, statementName, 0, NULL, NULL, NULL, 1);
+      // }
+      // TODO: verify that this is correct, but since we don't use the params
+      // at the moment it should be fine
+      // if (!PQsendQuery(pquv->conn, r->q)) {
       if (!PQsendQueryParams(pquv->conn, r->q, r->nParams, r->paramTypes, r->paramValues, r->paramLengths,
                              r->paramFormats, 1)) {
         NULL;  // failwith("PQsendQuery: %s\n", PQerrorMessage(pquv->conn));
       }
       break;
+    }
     case PQUV_PREPARE_STATEMENT:
       if (!PQsendPrepare(pquv->conn, r->name, r->q, r->nParams, r->paramTypes)) {
         NULL;  // failwith("PQSendPerpare: %s\n", PQerrorMessage(pquv->conn));
@@ -281,7 +300,7 @@ static void poll_cb(uv_poll_t* handle, int status, int events) {
     PGresult* r = PQgetResult(pquv->conn);
 
     int res = PQresultStatus(r);
-    if (res != PGRES_TUPLES_OK && res != PGRES_COMMAND_OK) {
+    if (res != PGRES_TUPLES_OK && res != PGRES_COMMAND_OK && res != PGRES_EMPTY_QUERY) {
       setError(pquv, PQUV_ERROR_BAD_QUERY);
     }
 
@@ -360,6 +379,13 @@ static void start_connection_close_poll_cb(uv_handle_t* h) {
   start_connection(pquv);
 }
 
+
+static void defaultNoticeProcessor(void *arg, const char *message) {
+  // Do nothing
+  // fprintf(stderr, "%s", message);
+}
+
+
 static void start_connection(pquv_t* pquv) {
   if (pquv->fd >= 0) {
     if (uv_poll_stop(&pquv->poll) != 0) {
@@ -375,7 +401,10 @@ static void start_connection(pquv_t* pquv) {
   pquv->conn = PQconnectStart(pquv->conninfo);
   if (pquv->conn == NULL) {
     setError(pquv, PQUV_ERROR_BAD_CONNECTION);
+  } else {
+    PQsetNoticeProcessor(pquv->conn, defaultNoticeProcessor, NULL);
   }
+
 
   if (PQstatus(pquv->conn) == CONNECTION_BAD) {
     setError(pquv, PQUV_ERROR_BAD_CONNECTION);

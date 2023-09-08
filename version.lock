@@ -1,5 +1,5 @@
 {
-  "buildHash": "6cbd840a4d7458e228ce02e822d0691c",
+  "buildHash": "096b35953b5c7a79b5210d96bf5e25ba",
   "jsApi": {
     "apiInstances": [],
     "apiAliases": {
@@ -23,8 +23,8 @@
         "DateValue DateTime",
         "Float4Value Float",
         "Float8Value Float",
-        "Int2Value Integer",
-        "Int4Value Integer",
+        "Int2Value Short",
+        "Int4Value Short",
         "Int8Value Integer",
         "Json String",
         "JsonB String",
@@ -60,8 +60,8 @@
         "DateValue DateTime",
         "Float4Value Float",
         "Float8Value Float",
-        "Int2Value Integer",
-        "Int4Value Integer",
+        "Int2Value Short",
+        "Int4Value Short",
         "Int8Value Integer",
         "Json String",
         "JsonB String",
@@ -74,5 +74,5 @@
       ]
     }
   },
-  "versionHash": "25e64aa754c310d45c1e084d574c1bb0"
+  "versionHash": "47cd76e43f74bbc2e1baaf194d07e1fa"
 }
